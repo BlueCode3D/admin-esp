@@ -320,7 +320,7 @@ makeToggle("Team / Groupe",                "showTeam",      9)
 makeToggle("Vie (Health)",                 "showHealth",    10)
 makeSection("─── RENDU", 11)
 makeSlider("Taille du texte",   "textSize",    8,  28,  1,  12)
-makeSlider("Distance de rendu", "maxDistance", 20, 500, 10, 13)
+makeSlider("Distance de rendu", "maxDistance", 20, 5000, 10, 13)
 
 -- ============================================================
 -- DRAG PANEL
