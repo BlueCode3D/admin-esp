@@ -8,8 +8,8 @@ local localPlayer = Players.LocalPlayer
 -- CONFIG PAR DÉFAUT
 -- ============================================================
 local config = {
-	toggleKey     = Enum.KeyCode.LeftControl,  -- toggle ESP
-	menuKey       = Enum.KeyCode.CapsLock,      -- ouvre le menu
+	toggleKey     = Enum.KeyCode.LeftControl,
+	menuKey       = Enum.KeyCode.CapsLock,
 	showDisplay   = true,
 	showUsername  = true,
 	showDistance  = true,
@@ -20,26 +20,58 @@ local config = {
 	maxDistance   = 100,
 }
 
-local enabled           = false
-local billboards        = {}
-local listeningESPKey   = false
-local listeningMenuKey  = false
+local enabled          = false
+local billboards       = {}
+local listeningESPKey  = false
+local listeningMenuKey = false
 
 -- ============================================================
 -- SCREEN GUI
 -- ============================================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name           = "ESPGui"
-screenGui.ResetOnSpawn   = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.Parent         = localPlayer.PlayerGui
+screenGui.Name            = "ESPGui"
+screenGui.ResetOnSpawn    = false
+screenGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+screenGui.Parent          = localPlayer.PlayerGui
 
 -- ============================================================
--- BOUTON ESP ON/OFF
+-- HINT "Cliquez pour copier" (au-dessus du bouton ON/OFF)
+-- ============================================================
+local copyHint = Instance.new("TextLabel")
+copyHint.Size                   = UDim2.new(0, 160, 0, 26)
+copyHint.Position               = UDim2.new(1, -176, 1, -78)
+copyHint.BackgroundColor3       = Color3.fromRGB(30, 30, 30)
+copyHint.BackgroundTransparency = 0.2
+copyHint.TextColor3             = Color3.fromRGB(255, 220, 80)
+copyHint.Font                   = Enum.Font.Gotham
+copyHint.TextSize               = 12
+copyHint.Text                   = "👆 Cliquez sur un pseudo"
+copyHint.BorderSizePixel        = 0
+copyHint.Visible                = true
+copyHint.Parent                 = screenGui
+Instance.new("UICorner", copyHint).CornerRadius = UDim.new(0, 5)
+
+-- Feedback "Copié !"
+local copiedFeedback = Instance.new("TextLabel")
+copiedFeedback.Size                   = UDim2.new(0, 160, 0, 26)
+copiedFeedback.Position               = UDim2.new(1, -176, 1, -78)
+copiedFeedback.BackgroundColor3       = Color3.fromRGB(30, 80, 30)
+copiedFeedback.BackgroundTransparency = 0.2
+copiedFeedback.TextColor3             = Color3.fromRGB(80, 255, 80)
+copiedFeedback.Font                   = Enum.Font.GothamBold
+copiedFeedback.TextSize               = 12
+copiedFeedback.Text                   = "✅ Copié !"
+copiedFeedback.BorderSizePixel        = 0
+copiedFeedback.Visible                = false
+copiedFeedback.Parent                 = screenGui
+Instance.new("UICorner", copiedFeedback).CornerRadius = UDim.new(0, 5)
+
+-- ============================================================
+-- BOUTON ESP ON/OFF (remonté)
 -- ============================================================
 local statusButton = Instance.new("TextButton")
-statusButton.Size                   = UDim2.new(0, 120, 0, 36)
-statusButton.Position               = UDim2.new(1, -136, 1, -46)
+statusButton.Size                   = UDim2.new(0, 160, 0, 36)
+statusButton.Position               = UDim2.new(1, -176, 1, -46)
 statusButton.BackgroundColor3       = Color3.fromRGB(20, 20, 20)
 statusButton.BackgroundTransparency = 0.2
 statusButton.TextColor3             = Color3.fromRGB(255, 60, 60)
@@ -243,7 +275,6 @@ local function makeSlider(labelText, configKey, minVal, maxVal, step, order)
 	end)
 end
 
--- KeyBind générique : configKey = "toggleKey" ou "menuKey"
 local function makeKeyBind(labelText, configKey, order)
 	local row = Instance.new("Frame")
 	row.Size             = UDim2.new(1, -8, 0, 34)
@@ -275,11 +306,8 @@ local function makeKeyBind(labelText, configKey, order)
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
 	Instance.new("UIStroke", btn).Color = Color3.fromRGB(60, 60, 60)
 
-	local listening = false
-
 	btn.MouseButton1Click:Connect(function()
 		if listeningESPKey or listeningMenuKey then return end
-		listening = true
 		if configKey == "toggleKey" then listeningESPKey = true
 		else listeningMenuKey = true end
 
@@ -289,14 +317,11 @@ local function makeKeyBind(labelText, configKey, order)
 		local conn
 		conn = UserInputService.InputBegan:Connect(function(inp)
 			if inp.UserInputType == Enum.UserInputType.Keyboard then
-				-- Empêche d'assigner la même touche aux deux
 				local otherKey = configKey == "toggleKey" and config.menuKey or config.toggleKey
 				if inp.KeyCode == otherKey then return end
-
 				config[configKey] = inp.KeyCode
 				btn.Text          = inp.KeyCode.Name
 				btn.TextColor3    = Color3.fromRGB(200, 200, 200)
-				listening         = false
 				if configKey == "toggleKey" then listeningESPKey = false
 				else listeningMenuKey = false end
 				conn:Disconnect()
@@ -308,7 +333,7 @@ end
 -- ============================================================
 -- CONSTRUCTION DU PANEL
 -- ============================================================
-makeSection("─── TOUCHES",              1)
+makeSection("─── TOUCHES", 1)
 makeKeyBind("Touche Toggle ESP",  "toggleKey", 2)
 makeKeyBind("Touche Menu",        "menuKey",   3)
 makeSection("─── INFORMATIONS AFFICHÉES", 4)
@@ -319,8 +344,8 @@ makeToggle("Distance",                     "showDistance",  8)
 makeToggle("Team / Groupe",                "showTeam",      9)
 makeToggle("Vie (Health)",                 "showHealth",    10)
 makeSection("─── RENDU", 11)
-makeSlider("Taille du texte",   "textSize",    8,  28,  1,  12)
-makeSlider("Distance de rendu", "maxDistance", 20, 5000, 10, 13)
+makeSlider("Taille du texte",   "textSize",    8,   28,   1,  12)
+makeSlider("Distance de rendu", "maxDistance", 20, 5000, 50,  13)
 
 -- ============================================================
 -- DRAG PANEL
@@ -344,11 +369,42 @@ do
 end
 
 -- ============================================================
--- BILLBOARDS
+-- COPIER DANS LE CLIPBOARD
+-- ============================================================
+local copyFeedbackThread = nil
+
+local function showCopied()
+	copyHint.Visible     = false
+	copiedFeedback.Visible = true
+	if copyFeedbackThread then task.cancel(copyFeedbackThread) end
+	copyFeedbackThread = task.delay(2, function()
+		copiedFeedback.Visible = false
+		copyHint.Visible       = true
+	end)
+end
+
+local function copyToClipboard(text)
+	if setclipboard then
+		setclipboard(text)
+		showCopied()
+	elseif Clipboard and Clipboard.set then
+		Clipboard.set(text)
+		showCopied()
+	else
+		-- Fallback : affiche dans la console Output
+		print("[ESP] Copié : " .. text)
+		showCopied()
+	end
+end
+
+-- ============================================================
+-- BILLBOARDS avec boutons cliquables
 -- ============================================================
 local function clearBillboards()
-	for player, label in pairs(billboards) do
-		if label and label.Parent then label.Parent:Destroy() end
+	for player, data in pairs(billboards) do
+		if data.gui and data.gui.Parent then
+			data.gui:Destroy()
+		end
 	end
 	billboards = {}
 end
@@ -362,16 +418,84 @@ local function createBillboard(player)
 	if head:FindFirstChild("DebugTag") then head:FindFirstChild("DebugTag"):Destroy() end
 
 	local bb = Instance.new("BillboardGui")
-	bb.Name = "DebugTag" bb.Size = UDim2.new(0, 200, 0, 80)
-	bb.StudsOffset = Vector3.new(0, 2.5, 0) bb.AlwaysOnTop = true
-	bb.Adornee = head bb.Parent = head
+	bb.Name        = "DebugTag"
+	bb.Size        = UDim2.new(0, 220, 0, 100)
+	bb.StudsOffset = Vector3.new(0, 2.5, 0)
+	bb.AlwaysOnTop = true
+	bb.Adornee     = head
+	bb.Parent      = head
 
-	local text = Instance.new("TextLabel", bb)
-	text.Size = UDim2.new(1, 0, 1, 0) text.BackgroundTransparency = 1
-	text.TextColor3 = Color3.fromRGB(255, 255, 255)
-	text.TextStrokeTransparency = 0 text.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-	text.Font = Enum.Font.GothamBold text.RichText = true text.TextScaled = false
-	billboards[player] = text
+	-- Label infos (distance, team, health) — non cliquable
+	local infoLabel = Instance.new("TextLabel", bb)
+	infoLabel.Name                  = "InfoLabel"
+	infoLabel.Size                  = UDim2.new(1, 0, 1, 0)
+	infoLabel.Position              = UDim2.new(0, 0, 0, 0)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.TextColor3            = Color3.fromRGB(255, 255, 255)
+	infoLabel.TextStrokeTransparency = 0
+	infoLabel.TextStrokeColor3      = Color3.fromRGB(0, 0, 0)
+	infoLabel.Font                  = Enum.Font.GothamBold
+	infoLabel.RichText              = true
+	infoLabel.TextScaled            = false
+	infoLabel.TextYAlignment        = Enum.TextYAlignment.Top
+
+	-- Bouton DisplayName (cliquable)
+	local displayBtn = Instance.new("TextButton", bb)
+	displayBtn.Name                   = "DisplayBtn"
+	displayBtn.Size                   = UDim2.new(1, 0, 0, 22)
+	displayBtn.Position               = UDim2.new(0, 0, 0, 0)
+	displayBtn.BackgroundTransparency = 1
+	displayBtn.Font                   = Enum.Font.GothamBold
+	displayBtn.TextSize               = config.textSize
+	displayBtn.TextStrokeTransparency = 0
+	displayBtn.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+	displayBtn.RichText               = true
+	displayBtn.Text                   = ""
+
+	-- Hover effect sur DisplayName
+	displayBtn.MouseEnter:Connect(function()
+		displayBtn.BackgroundTransparency = 0.7
+		displayBtn.BackgroundColor3       = Color3.fromRGB(255, 220, 50)
+	end)
+	displayBtn.MouseLeave:Connect(function()
+		displayBtn.BackgroundTransparency = 1
+	end)
+	displayBtn.MouseButton1Click:Connect(function()
+		copyToClipboard(player.DisplayName .. " (@" .. player.Name .. ")")
+	end)
+	Instance.new("UICorner", displayBtn).CornerRadius = UDim.new(0, 4)
+
+	-- Bouton @username (cliquable)
+	local usernameBtn = Instance.new("TextButton", bb)
+	usernameBtn.Name                   = "UsernameBtn"
+	usernameBtn.Size                   = UDim2.new(1, 0, 0, 20)
+	usernameBtn.Position               = UDim2.new(0, 0, 0, 24)
+	usernameBtn.BackgroundTransparency = 1
+	usernameBtn.Font                   = Enum.Font.GothamBold
+	usernameBtn.TextSize               = config.textSize
+	usernameBtn.TextStrokeTransparency = 0
+	usernameBtn.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+	usernameBtn.RichText               = true
+	usernameBtn.Text                   = ""
+
+	usernameBtn.MouseEnter:Connect(function()
+		usernameBtn.BackgroundTransparency = 0.7
+		usernameBtn.BackgroundColor3       = Color3.fromRGB(255, 220, 50)
+	end)
+	usernameBtn.MouseLeave:Connect(function()
+		usernameBtn.BackgroundTransparency = 1
+	end)
+	usernameBtn.MouseButton1Click:Connect(function()
+		copyToClipboard(player.Name)
+	end)
+	Instance.new("UICorner", usernameBtn).CornerRadius = UDim.new(0, 4)
+
+	billboards[player] = {
+		gui         = bb,
+		infoLabel   = infoLabel,
+		displayBtn  = displayBtn,
+		usernameBtn = usernameBtn,
+	}
 end
 
 -- ============================================================
@@ -380,9 +504,11 @@ end
 local function toggleESP()
 	enabled = not enabled
 	if enabled then
-		statusButton.Text = "ESP ON" statusButton.TextColor3 = Color3.fromRGB(50, 255, 50)
+		statusButton.Text       = "ESP ON"
+		statusButton.TextColor3 = Color3.fromRGB(50, 255, 50)
 	else
-		statusButton.Text = "ESP OFF" statusButton.TextColor3 = Color3.fromRGB(255, 60, 60)
+		statusButton.Text       = "ESP OFF"
+		statusButton.TextColor3 = Color3.fromRGB(255, 60, 60)
 		clearBillboards()
 	end
 end
@@ -396,7 +522,6 @@ closeBtn.MouseButton1Click:Connect(function() panel.Visible = false end)
 UserInputService.InputBegan:Connect(function(inp)
 	if inp.UserInputType ~= Enum.UserInputType.Keyboard then return end
 	if listeningESPKey or listeningMenuKey then return end
-
 	if inp.KeyCode == config.menuKey then
 		panel.Visible = not panel.Visible
 	elseif inp.KeyCode == config.toggleKey then
@@ -409,7 +534,9 @@ end)
 -- ============================================================
 Players.PlayerRemoving:Connect(function(player)
 	if billboards[player] then
-		if billboards[player].Parent then billboards[player].Parent:Destroy() end
+		if billboards[player].gui and billboards[player].gui.Parent then
+			billboards[player].gui:Destroy()
+		end
 		billboards[player] = nil
 	end
 end)
@@ -436,49 +563,76 @@ RunService.RenderStepped:Connect(function()
 
 			if root then
 				local dist = (root.Position - myPos).Magnitude
+
 				if dist <= config.maxDistance then
-					if not billboards[player] or not billboards[player].Parent then
+					if not billboards[player] or not billboards[player].gui.Parent then
 						createBillboard(player)
 					end
-					local label = billboards[player]
-					if label then
-						label.TextSize = config.textSize
-						local lines = {}
 
+					local data = billboards[player]
+					if data then
+						local displayColor = "#ffffff"
+						if config.teamColorName and player.Team then
+							displayColor = colorToHex(player.TeamColor.Color)
+						end
+
+						-- Bouton DisplayName
 						if config.showDisplay then
-							local col = "#ffffff"
-							if config.teamColorName and player.Team then
-								col = colorToHex(player.TeamColor.Color)
-							end
-							lines[#lines+1] = '<font color="'..col..'"><b>'..player.DisplayName..'</b></font>'
+							data.displayBtn.Visible  = true
+							data.displayBtn.TextSize = config.textSize
+							data.displayBtn.Text     = '<font color="' .. displayColor .. '"><b>' .. player.DisplayName .. '</b></font>'
+							data.displayBtn.TextColor3 = Color3.fromRGB(255,255,255)
+						else
+							data.displayBtn.Visible = false
 						end
+
+						-- Bouton @username
 						if config.showUsername then
-							lines[#lines+1] = '<font color="#ffffff">@'..player.Name..'</font>'
+							data.usernameBtn.Visible   = true
+							data.usernameBtn.TextSize  = config.textSize
+							data.usernameBtn.Text      = '<font color="#ffffff">@' .. player.Name .. '</font>'
+							data.usernameBtn.TextColor3 = Color3.fromRGB(255,255,255)
+						else
+							data.usernameBtn.Visible = false
 						end
+
+						-- Repositionne usernameBtn selon si display est visible
+						local offsetY = config.showDisplay and (config.textSize + 8) or 0
+						data.usernameBtn.Position = UDim2.new(0, 0, 0, offsetY)
+
+						-- InfoLabel : distance, team, health
+						local infoOffsetY = offsetY + (config.showUsername and (config.textSize + 6) or 0)
+						data.infoLabel.Position = UDim2.new(0, 0, 0, infoOffsetY)
+
+						local lines = {}
 						if config.showDistance then
-							lines[#lines+1] = '<font color="#ffff55">📍 '..math.floor(dist)..' studs</font>'
+							lines[#lines+1] = '<font color="#ffff55">📍 ' .. math.floor(dist) .. ' studs</font>'
 						end
 						if config.showTeam and player.Team then
-							lines[#lines+1] = '<font color="'..colorToHex(player.TeamColor.Color)..'">🏷 '..tostring(player.Team)..'</font>'
+							lines[#lines+1] = '<font color="' .. colorToHex(player.TeamColor.Color) .. '">🏷 ' .. tostring(player.Team) .. '</font>'
 						end
 						if config.showHealth then
 							local hum = char:FindFirstChildOfClass("Humanoid")
 							if hum then
-								local pct = math.floor((hum.Health / math.max(hum.MaxHealth,1)) * 100)
+								local pct = math.floor((hum.Health / math.max(hum.MaxHealth, 1)) * 100)
 								local hex = string.format("#%02x%02x00", math.floor((1-pct/100)*255), math.floor((pct/100)*255))
-								lines[#lines+1] = '<font color="'..hex..'">❤ '..pct..'%</font>'
+								lines[#lines+1] = '<font color="' .. hex .. '">❤ ' .. pct .. '%</font>'
 							end
 						end
-						label.Text = table.concat(lines, "\n")
+						data.infoLabel.TextSize = config.textSize
+						data.infoLabel.Text     = table.concat(lines, "\n")
 					end
+
 				else
-					if billboards[player] and billboards[player].Parent then
-						billboards[player].Parent:Destroy() billboards[player] = nil
+					if billboards[player] and billboards[player].gui and billboards[player].gui.Parent then
+						billboards[player].gui:Destroy()
+						billboards[player] = nil
 					end
 				end
 			else
-				if billboards[player] and billboards[player].Parent then
-					billboards[player].Parent:Destroy() billboards[player] = nil
+				if billboards[player] and billboards[player].gui and billboards[player].gui.Parent then
+					billboards[player].gui:Destroy()
+					billboards[player] = nil
 				end
 			end
 		end
