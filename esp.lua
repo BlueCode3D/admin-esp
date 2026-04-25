@@ -12,49 +12,36 @@ local config = {
 	menuKey       = Enum.KeyCode.CapsLock,
 	showDisplay   = true,
 	showUsername  = true,
-	showDistance  = true,
-	showTeam      = true,
-	showHealth    = true,
-	teamColorName = false,
-	textSize      = 14,
-	maxDistance   = 100,
+	showDistance  = false,
+	showTeam      = false,
+	showHealth    = false,
+	teamColorName = true,
+	textSize      = 11,
+	maxDistance   = 5000,
 }
 
 local enabled          = false
 local billboards       = {}
 local listeningESPKey  = false
 local listeningMenuKey = false
+local scriptStopped    = false
+local connections      = {}
 
 -- ============================================================
 -- SCREEN GUI
 -- ============================================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name            = "ESPGui"
-screenGui.ResetOnSpawn    = false
-screenGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
-screenGui.Parent          = localPlayer.PlayerGui
+screenGui.Name           = "ESPGui"
+screenGui.ResetOnSpawn   = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent         = localPlayer.PlayerGui
 
 -- ============================================================
--- HINT "Cliquez pour copier" (au-dessus du bouton ON/OFF)
+-- FEEDBACK "Copié !"
 -- ============================================================
-local copyHint = Instance.new("TextLabel")
-copyHint.Size                   = UDim2.new(0, 160, 0, 26)
-copyHint.Position               = UDim2.new(1, -176, 1, -78)
-copyHint.BackgroundColor3       = Color3.fromRGB(30, 30, 30)
-copyHint.BackgroundTransparency = 0.2
-copyHint.TextColor3             = Color3.fromRGB(255, 220, 80)
-copyHint.Font                   = Enum.Font.Gotham
-copyHint.TextSize               = 12
-copyHint.Text                   = "👆 Cliquez sur un pseudo"
-copyHint.BorderSizePixel        = 0
-copyHint.Visible                = true
-copyHint.Parent                 = screenGui
-Instance.new("UICorner", copyHint).CornerRadius = UDim.new(0, 5)
-
--- Feedback "Copié !"
 local copiedFeedback = Instance.new("TextLabel")
-copiedFeedback.Size                   = UDim2.new(0, 160, 0, 26)
-copiedFeedback.Position               = UDim2.new(1, -176, 1, -78)
+copiedFeedback.Size                   = UDim2.new(0, 120, 0, 26)
+copiedFeedback.Position               = UDim2.new(1, -136, 1, -96)
 copiedFeedback.BackgroundColor3       = Color3.fromRGB(30, 80, 30)
 copiedFeedback.BackgroundTransparency = 0.2
 copiedFeedback.TextColor3             = Color3.fromRGB(80, 255, 80)
@@ -67,11 +54,11 @@ copiedFeedback.Parent                 = screenGui
 Instance.new("UICorner", copiedFeedback).CornerRadius = UDim.new(0, 5)
 
 -- ============================================================
--- BOUTON ESP ON/OFF (remonté)
+-- BOUTON ESP ON/OFF
 -- ============================================================
 local statusButton = Instance.new("TextButton")
-statusButton.Size                   = UDim2.new(0, 160, 0, 36)
-statusButton.Position               = UDim2.new(1, -176, 1, -46)
+statusButton.Size                   = UDim2.new(0, 120, 0, 36)
+statusButton.Position               = UDim2.new(1, -136, 1, -64)
 statusButton.BackgroundColor3       = Color3.fromRGB(20, 20, 20)
 statusButton.BackgroundTransparency = 0.2
 statusButton.TextColor3             = Color3.fromRGB(255, 60, 60)
@@ -87,8 +74,8 @@ Instance.new("UICorner", statusButton).CornerRadius = UDim.new(0, 6)
 -- ============================================================
 local panel = Instance.new("Frame")
 panel.Name                   = "ConfigPanel"
-panel.Size                   = UDim2.new(0, 320, 0, 490)
-panel.Position               = UDim2.new(0.5, -160, 0.5, -245)
+panel.Size                   = UDim2.new(0, 320, 0, 520)
+panel.Position               = UDim2.new(0.5, -160, 0.5, -260)
 panel.BackgroundColor3       = Color3.fromRGB(14, 14, 14)
 panel.BackgroundTransparency = 0
 panel.BorderSizePixel        = 0
@@ -263,12 +250,18 @@ local function makeSlider(labelText, configKey, minVal, maxVal, step, order)
 		valLbl.Text    = tostring(snapped)
 	end
 
-	thumb.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
+	thumb.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
+	end)
 	track.InputBegan:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true updateFromX(i.Position.X) end
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true updateFromX(i.Position.X)
+		end
 	end)
 	UserInputService.InputChanged:Connect(function(i)
-		if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then updateFromX(i.Position.X) end
+		if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+			updateFromX(i.Position.X)
+		end
 	end)
 	UserInputService.InputEnded:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
@@ -334,8 +327,8 @@ end
 -- CONSTRUCTION DU PANEL
 -- ============================================================
 makeSection("─── TOUCHES", 1)
-makeKeyBind("Touche Toggle ESP",  "toggleKey", 2)
-makeKeyBind("Touche Menu",        "menuKey",   3)
+makeKeyBind("Touche Toggle ESP", "toggleKey", 2)
+makeKeyBind("Touche Menu",       "menuKey",   3)
 makeSection("─── INFORMATIONS AFFICHÉES", 4)
 makeToggle("Pseudo d'affichage",           "showDisplay",   5)
 makeToggle("Colorer pseudo selon la team", "teamColorName", 6)
@@ -344,8 +337,33 @@ makeToggle("Distance",                     "showDistance",  8)
 makeToggle("Team / Groupe",                "showTeam",      9)
 makeToggle("Vie (Health)",                 "showHealth",    10)
 makeSection("─── RENDU", 11)
-makeSlider("Taille du texte",   "textSize",    8,   28,   1,  12)
-makeSlider("Distance de rendu", "maxDistance", 20, 5000, 50,  13)
+makeSlider("Taille du texte",   "textSize",    8,   28,   1, 12)
+makeSlider("Distance de rendu", "maxDistance", 20, 5000, 50, 13)
+
+-- Séparateur + bouton Stop
+makeSection("─── Autre", 14)
+
+local stopRow = Instance.new("Frame")
+stopRow.Size             = UDim2.new(1, -8, 0, 38)
+stopRow.BackgroundColor3 = Color3.fromRGB(60, 15, 15)
+stopRow.BorderSizePixel  = 0
+stopRow.LayoutOrder      = 15
+stopRow.Parent           = scroll
+Instance.new("UICorner", stopRow).CornerRadius = UDim.new(0, 7)
+local stopStroke = Instance.new("UIStroke", stopRow)
+stopStroke.Color     = Color3.fromRGB(140, 30, 30)
+stopStroke.Thickness = 1
+
+local stopBtn = Instance.new("TextButton", stopRow)
+stopBtn.Size                   = UDim2.new(1, -16, 1, -10)
+stopBtn.Position               = UDim2.new(0, 8, 0, 5)
+stopBtn.BackgroundColor3       = Color3.fromRGB(180, 30, 30)
+stopBtn.BorderSizePixel        = 0
+stopBtn.Font                   = Enum.Font.GothamBold
+stopBtn.TextSize               = 13
+stopBtn.TextColor3             = Color3.fromRGB(255, 200, 200)
+stopBtn.Text                   = "⏹  Arrêter le script"
+Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 5)
 
 -- ============================================================
 -- DRAG PANEL
@@ -360,7 +378,10 @@ do
 	UserInputService.InputChanged:Connect(function(inp)
 		if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
 			local d = inp.Position - dragStart
-			panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+			panel.Position = UDim2.new(
+				startPos.X.Scale, startPos.X.Offset + d.X,
+				startPos.Y.Scale, startPos.Y.Offset + d.Y
+			)
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(inp)
@@ -369,39 +390,33 @@ do
 end
 
 -- ============================================================
--- COPIER DANS LE CLIPBOARD
+-- CLIPBOARD
 -- ============================================================
 local copyFeedbackThread = nil
-
 local function showCopied()
-	copyHint.Visible     = false
 	copiedFeedback.Visible = true
 	if copyFeedbackThread then task.cancel(copyFeedbackThread) end
 	copyFeedbackThread = task.delay(2, function()
 		copiedFeedback.Visible = false
-		copyHint.Visible       = true
 	end)
 end
 
 local function copyToClipboard(text)
 	if setclipboard then
 		setclipboard(text)
-		showCopied()
 	elseif Clipboard and Clipboard.set then
 		Clipboard.set(text)
-		showCopied()
 	else
-		-- Fallback : affiche dans la console Output
 		print("[ESP] Copié : " .. text)
-		showCopied()
 	end
+	showCopied()
 end
 
 -- ============================================================
--- BILLBOARDS avec boutons cliquables
+-- BILLBOARDS
 -- ============================================================
 local function clearBillboards()
-	for player, data in pairs(billboards) do
+	for _, data in pairs(billboards) do
 		if data.gui and data.gui.Parent then
 			data.gui:Destroy()
 		end
@@ -415,7 +430,9 @@ local function createBillboard(player)
 	if not char then return end
 	local head = char:FindFirstChild("Head")
 	if not head then return end
-	if head:FindFirstChild("DebugTag") then head:FindFirstChild("DebugTag"):Destroy() end
+	if head:FindFirstChild("DebugTag") then
+		head:FindFirstChild("DebugTag"):Destroy()
+	end
 
 	local bb = Instance.new("BillboardGui")
 	bb.Name        = "DebugTag"
@@ -425,76 +442,61 @@ local function createBillboard(player)
 	bb.Adornee     = head
 	bb.Parent      = head
 
-	-- Label infos (distance, team, health) — non cliquable
-	local infoLabel = Instance.new("TextLabel", bb)
-	infoLabel.Name                  = "InfoLabel"
-	infoLabel.Size                  = UDim2.new(1, 0, 1, 0)
-	infoLabel.Position              = UDim2.new(0, 0, 0, 0)
-	infoLabel.BackgroundTransparency = 1
-	infoLabel.TextColor3            = Color3.fromRGB(255, 255, 255)
-	infoLabel.TextStrokeTransparency = 0
-	infoLabel.TextStrokeColor3      = Color3.fromRGB(0, 0, 0)
-	infoLabel.Font                  = Enum.Font.GothamBold
-	infoLabel.RichText              = true
-	infoLabel.TextScaled            = false
-	infoLabel.TextYAlignment        = Enum.TextYAlignment.Top
-
-	-- Bouton DisplayName (cliquable)
+	-- Bouton DisplayName
 	local displayBtn = Instance.new("TextButton", bb)
 	displayBtn.Name                   = "DisplayBtn"
-	displayBtn.Size                   = UDim2.new(1, 0, 0, 22)
+	displayBtn.Size                   = UDim2.new(1, 0, 0, 20)
 	displayBtn.Position               = UDim2.new(0, 0, 0, 0)
 	displayBtn.BackgroundTransparency = 1
+	displayBtn.BorderSizePixel        = 0
 	displayBtn.Font                   = Enum.Font.GothamBold
 	displayBtn.TextSize               = config.textSize
 	displayBtn.TextStrokeTransparency = 0
 	displayBtn.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+	displayBtn.TextColor3             = Color3.fromRGB(255, 255, 255)
 	displayBtn.RichText               = true
 	displayBtn.Text                   = ""
-
-	-- Hover effect sur DisplayName
-	displayBtn.MouseEnter:Connect(function()
-		displayBtn.BackgroundTransparency = 0.7
-		displayBtn.BackgroundColor3       = Color3.fromRGB(255, 220, 50)
-	end)
-	displayBtn.MouseLeave:Connect(function()
-		displayBtn.BackgroundTransparency = 1
-	end)
-	displayBtn.MouseButton1Click:Connect(function()
-		copyToClipboard(player.DisplayName .. " (@" .. player.Name .. ")")
-	end)
 	Instance.new("UICorner", displayBtn).CornerRadius = UDim.new(0, 4)
+	-- PAS de MouseButton1Click ici, géré dans RenderStepped
 
-	-- Bouton @username (cliquable)
+	-- Bouton @username
 	local usernameBtn = Instance.new("TextButton", bb)
 	usernameBtn.Name                   = "UsernameBtn"
 	usernameBtn.Size                   = UDim2.new(1, 0, 0, 20)
-	usernameBtn.Position               = UDim2.new(0, 0, 0, 24)
+	usernameBtn.Position               = UDim2.new(0, 0, 0, 20)
 	usernameBtn.BackgroundTransparency = 1
+	usernameBtn.BorderSizePixel        = 0
 	usernameBtn.Font                   = Enum.Font.GothamBold
 	usernameBtn.TextSize               = config.textSize
 	usernameBtn.TextStrokeTransparency = 0
 	usernameBtn.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+	usernameBtn.TextColor3             = Color3.fromRGB(255, 255, 255)
 	usernameBtn.RichText               = true
 	usernameBtn.Text                   = ""
-
-	usernameBtn.MouseEnter:Connect(function()
-		usernameBtn.BackgroundTransparency = 0.7
-		usernameBtn.BackgroundColor3       = Color3.fromRGB(255, 220, 50)
-	end)
-	usernameBtn.MouseLeave:Connect(function()
-		usernameBtn.BackgroundTransparency = 1
-	end)
-	usernameBtn.MouseButton1Click:Connect(function()
-		copyToClipboard(player.Name)
-	end)
 	Instance.new("UICorner", usernameBtn).CornerRadius = UDim.new(0, 4)
+	-- PAS de MouseButton1Click ici, géré dans RenderStepped
+
+	-- Label infos (distance, team, health)
+	local infoLabel = Instance.new("TextLabel", bb)
+	infoLabel.Name                   = "InfoLabel"
+	infoLabel.Size                   = UDim2.new(1, 0, 1, 0)
+	infoLabel.Position               = UDim2.new(0, 0, 0, 42)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.TextColor3             = Color3.fromRGB(255, 255, 255)
+	infoLabel.TextStrokeTransparency = 0
+	infoLabel.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+	infoLabel.Font                   = Enum.Font.GothamBold
+	infoLabel.RichText               = true
+	infoLabel.TextScaled             = false
+	infoLabel.TextYAlignment         = Enum.TextYAlignment.Top
 
 	billboards[player] = {
 		gui         = bb,
-		infoLabel   = infoLabel,
 		displayBtn  = displayBtn,
 		usernameBtn = usernameBtn,
+		infoLabel   = infoLabel,
+		head        = head,
+		clicked     = false,  -- flag anti-spam clic
 	}
 end
 
@@ -514,12 +516,23 @@ local function toggleESP()
 end
 
 -- ============================================================
+-- STOP SCRIPT
+-- ============================================================
+stopBtn.MouseButton1Click:Connect(function()
+	scriptStopped = true
+	enabled       = false
+	clearBillboards()
+	screenGui:Destroy()
+end)
+
+-- ============================================================
 -- INPUTS
 -- ============================================================
 statusButton.MouseButton1Click:Connect(toggleESP)
 closeBtn.MouseButton1Click:Connect(function() panel.Visible = false end)
 
 UserInputService.InputBegan:Connect(function(inp)
+	if scriptStopped then return end
 	if inp.UserInputType ~= Enum.UserInputType.Keyboard then return end
 	if listeningESPKey or listeningMenuKey then return end
 	if inp.KeyCode == config.menuKey then
@@ -542,19 +555,29 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 -- ============================================================
--- BOUCLE PRINCIPALE
+-- HELPERS
 -- ============================================================
 local function colorToHex(c)
-	return string.format("#%02x%02x%02x", math.floor(c.R*255), math.floor(c.G*255), math.floor(c.B*255))
+	return string.format("#%02x%02x%02x",
+		math.floor(c.R * 255),
+		math.floor(c.G * 255),
+		math.floor(c.B * 255))
 end
 
+-- ============================================================
+-- BOUCLE PRINCIPALE
+-- ============================================================
 RunService.RenderStepped:Connect(function()
+	if scriptStopped then return end
 	if not enabled then return end
+
 	local myChar = localPlayer.Character
 	if not myChar then return end
 	local myRoot = myChar:FindFirstChild("HumanoidRootPart")
 	if not myRoot then return end
-	local myPos = myRoot.Position
+	local myPos    = myRoot.Position
+	local camera   = workspace.CurrentCamera
+	local mousePos = UserInputService:GetMouseLocation()
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= localPlayer then
@@ -570,58 +593,88 @@ RunService.RenderStepped:Connect(function()
 					end
 
 					local data = billboards[player]
-					if data then
-						local displayColor = "#ffffff"
-						if config.teamColorName and player.Team then
-							displayColor = colorToHex(player.TeamColor.Color)
-						end
+					if not data then continue end
 
-						-- Bouton DisplayName
-						if config.showDisplay then
-							data.displayBtn.Visible  = true
-							data.displayBtn.TextSize = config.textSize
-							data.displayBtn.Text     = '<font color="' .. displayColor .. '"><b>' .. player.DisplayName .. '</b></font>'
-							data.displayBtn.TextColor3 = Color3.fromRGB(255,255,255)
-						else
-							data.displayBtn.Visible = false
+					-- Hover via WorldToScreenPoint
+					local head = char:FindFirstChild("Head")
+					local isHovered = false
+					if head then
+						local screenPos, onScreen = camera:WorldToScreenPoint(
+							head.Position + Vector3.new(0, 2.5, 0)
+						)
+						if onScreen then
+							local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+							isHovered = dist2D < 55
 						end
-
-						-- Bouton @username
-						if config.showUsername then
-							data.usernameBtn.Visible   = true
-							data.usernameBtn.TextSize  = config.textSize
-							data.usernameBtn.Text      = '<font color="#ffffff">@' .. player.Name .. '</font>'
-							data.usernameBtn.TextColor3 = Color3.fromRGB(255,255,255)
-						else
-							data.usernameBtn.Visible = false
-						end
-
-						-- Repositionne usernameBtn selon si display est visible
-						local offsetY = config.showDisplay and (config.textSize + 8) or 0
-						data.usernameBtn.Position = UDim2.new(0, 0, 0, offsetY)
-
-						-- InfoLabel : distance, team, health
-						local infoOffsetY = offsetY + (config.showUsername and (config.textSize + 6) or 0)
-						data.infoLabel.Position = UDim2.new(0, 0, 0, infoOffsetY)
-
-						local lines = {}
-						if config.showDistance then
-							lines[#lines+1] = '<font color="#ffff55">📍 ' .. math.floor(dist) .. ' studs</font>'
-						end
-						if config.showTeam and player.Team then
-							lines[#lines+1] = '<font color="' .. colorToHex(player.TeamColor.Color) .. '">🏷 ' .. tostring(player.Team) .. '</font>'
-						end
-						if config.showHealth then
-							local hum = char:FindFirstChildOfClass("Humanoid")
-							if hum then
-								local pct = math.floor((hum.Health / math.max(hum.MaxHealth, 1)) * 100)
-								local hex = string.format("#%02x%02x00", math.floor((1-pct/100)*255), math.floor((pct/100)*255))
-								lines[#lines+1] = '<font color="' .. hex .. '">❤ ' .. pct .. '%</font>'
-							end
-						end
-						data.infoLabel.TextSize = config.textSize
-						data.infoLabel.Text     = table.concat(lines, "\n")
 					end
+
+					-- Clic manuel détecté via proximité souris
+					if isHovered then
+						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+							if not data.clicked then
+								data.clicked = true
+								copyToClipboard(player.Name)
+							end
+						else
+							data.clicked = false
+						end
+					else
+						data.clicked = false
+					end
+
+					-- Couleurs
+					local hoverColor  = Color3.fromRGB(255, 220, 50)
+					local normalWhite = Color3.fromRGB(255, 255, 255)
+
+					-- DisplayName
+					if config.showDisplay then
+						data.displayBtn.Visible  = true
+						data.displayBtn.TextSize = config.textSize
+						local col = "#ffffff"
+						if config.teamColorName and player.Team then
+							col = colorToHex(player.TeamColor.Color)
+						end
+						data.displayBtn.Text       = '<font color="' .. col .. '"><b>' .. player.DisplayName .. '</b></font>'
+						data.displayBtn.TextColor3 = isHovered and hoverColor or normalWhite
+					else
+						data.displayBtn.Visible = false
+					end
+
+					-- @username
+					local offsetY = config.showDisplay and (config.textSize + 2) or 0
+					if config.showUsername then
+						data.usernameBtn.Visible    = true
+						data.usernameBtn.TextSize   = config.textSize
+						data.usernameBtn.Position   = UDim2.new(0, 0, 0, offsetY)
+						data.usernameBtn.Text       = '<font color="#ffffff">@' .. player.Name .. '</font>'
+						data.usernameBtn.TextColor3 = isHovered and hoverColor or normalWhite
+					else
+						data.usernameBtn.Visible = false
+					end
+
+					-- InfoLabel
+					local infoOffsetY = offsetY + (config.showUsername and (config.textSize + 2) or 0)
+					data.infoLabel.Position = UDim2.new(0, 0, 0, infoOffsetY)
+					data.infoLabel.TextSize = config.textSize
+
+					local lines = {}
+					if config.showDistance then
+						lines[#lines+1] = '<font color="#ffff55">📍 ' .. math.floor(dist) .. ' studs</font>'
+					end
+					if config.showTeam and player.Team then
+						lines[#lines+1] = '<font color="' .. colorToHex(player.TeamColor.Color) .. '">🏷 ' .. tostring(player.Team) .. '</font>'
+					end
+					if config.showHealth then
+						local hum = char:FindFirstChildOfClass("Humanoid")
+						if hum then
+							local pct = math.floor((hum.Health / math.max(hum.MaxHealth, 1)) * 100)
+							local hex = string.format("#%02x%02x00",
+								math.floor((1 - pct / 100) * 255),
+								math.floor((pct / 100) * 255))
+							lines[#lines+1] = '<font color="' .. hex .. '">❤ ' .. pct .. '%</font>'
+						end
+					end
+					data.infoLabel.Text = table.concat(lines, "\n")
 
 				else
 					if billboards[player] and billboards[player].gui and billboards[player].gui.Parent then
