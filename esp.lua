@@ -2,22 +2,26 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local localPlayer = Players.LocalPlayer
 
 -- ============================================================
 -- CONFIG PAR DÉFAUT
 -- ============================================================
 local config = {
-	toggleKey     = Enum.KeyCode.LeftControl,
-	menuKey       = Enum.KeyCode.CapsLock,
-	showDisplay   = true,
-	showUsername  = true,
-	showDistance  = false,
-	showTeam      = false,
-	showHealth    = false,
-	teamColorName = true,
-	textSize      = 11,
-	maxDistance   = 5000,
+	toggleKey      = Enum.KeyCode.LeftControl,
+	menuKey        = Enum.KeyCode.CapsLock,
+	showDisplay    = true,
+	showUsername   = true,
+	showDistance   = false,
+	showTeam       = false,
+	showHealth     = false,
+	teamColorName  = true,
+	textSize       = 11,
+	maxDistance    = 5000,
+	fullbright     = false,
+	fullbrightVal  = 1,
+	noAtmosphere   = false,
 }
 
 local enabled          = false
@@ -25,7 +29,28 @@ local billboards       = {}
 local listeningESPKey  = false
 local listeningMenuKey = false
 local scriptStopped    = false
-local connections      = {}
+
+-- Sauvegarde lighting original
+local originalAmbient       = Lighting.Ambient
+local originalOutdoorAmbient = Lighting.OutdoorAmbient
+local originalBrightness    = Lighting.Brightness
+local originalClockTime     = Lighting.ClockTime
+local originalFogEnd        = Lighting.FogEnd
+local originalFogStart      = Lighting.FogStart
+
+-- Sauvegarde atmosphere originale
+local atmosphereBackup = {}
+local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+if atmosphere then
+	atmosphereBackup = {
+		Density    = atmosphere.Density,
+		Offset     = atmosphere.Offset,
+		Color      = atmosphere.Color,
+		Decay      = atmosphere.Decay,
+		Glare      = atmosphere.Glare,
+		Haze       = atmosphere.Haze,
+	}
+end
 
 -- ============================================================
 -- SCREEN GUI
@@ -35,6 +60,31 @@ screenGui.Name           = "ESPGui"
 screenGui.ResetOnSpawn   = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent         = localPlayer.PlayerGui
+
+-- ============================================================
+-- COMPTEUR JOUEURS (haut droite)
+-- ============================================================
+local playerCount = Instance.new("TextLabel")
+playerCount.Size                   = UDim2.new(0, 120, 0, 30)
+playerCount.Position               = UDim2.new(1, -136, 0, 12)
+playerCount.BackgroundColor3       = Color3.fromRGB(20, 20, 20)
+playerCount.BackgroundTransparency = 0.2
+playerCount.TextColor3             = Color3.fromRGB(180, 180, 180)
+playerCount.Font                   = Enum.Font.GothamBold
+playerCount.TextSize               = 13
+playerCount.BorderSizePixel        = 0
+playerCount.Parent                 = screenGui
+Instance.new("UICorner", playerCount).CornerRadius = UDim.new(0, 6)
+
+-- Mise à jour compteur
+local function updatePlayerCount()
+	local count = #Players:GetPlayers()
+	local max   = Players.MaxPlayers
+	playerCount.Text = "👥 " .. count .. " / " .. max
+end
+updatePlayerCount()
+Players.PlayerAdded:Connect(updatePlayerCount)
+Players.PlayerRemoving:Connect(function() task.wait() updatePlayerCount() end)
 
 -- ============================================================
 -- FEEDBACK "Copié !"
@@ -143,7 +193,7 @@ local function makeSection(labelText, order)
 	lbl.Parent                 = scroll
 end
 
-local function makeToggle(labelText, configKey, order)
+local function makeToggle(labelText, configKey, order, callback)
 	local row = Instance.new("Frame")
 	row.Size             = UDim2.new(1, -8, 0, 34)
 	row.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
@@ -186,10 +236,11 @@ local function makeToggle(labelText, configKey, order)
 	btn.MouseButton1Click:Connect(function()
 		config[configKey] = not config[configKey]
 		refresh()
+		if callback then callback(config[configKey]) end
 	end)
 end
 
-local function makeSlider(labelText, configKey, minVal, maxVal, step, order)
+local function makeSlider(labelText, configKey, minVal, maxVal, step, order, callback)
 	local row = Instance.new("Frame")
 	row.Size             = UDim2.new(1, -8, 0, 50)
 	row.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
@@ -248,6 +299,7 @@ local function makeSlider(labelText, configKey, minVal, maxVal, step, order)
 		fill.Size      = UDim2.new(nr, 0, 1, 0)
 		thumb.Position = UDim2.new(nr, 0, 0.5, 0)
 		valLbl.Text    = tostring(snapped)
+		if callback then callback(snapped) end
 	end
 
 	thumb.InputBegan:Connect(function(i)
@@ -324,6 +376,51 @@ local function makeKeyBind(labelText, configKey, order)
 end
 
 -- ============================================================
+-- FULLBRIGHT
+-- ============================================================
+local function applyFullbright(val)
+	if config.fullbright then
+		Lighting.Ambient        = Color3.new(1, 1, 1)
+		Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+		Lighting.Brightness     = val
+		Lighting.ClockTime      = 14
+		Lighting.FogEnd         = 100000
+		Lighting.FogStart       = 100000
+	else
+		Lighting.Ambient        = originalAmbient
+		Lighting.OutdoorAmbient = originalOutdoorAmbient
+		Lighting.Brightness     = originalBrightness
+		Lighting.ClockTime      = originalClockTime
+		Lighting.FogEnd         = originalFogEnd
+		Lighting.FogStart       = originalFogStart
+	end
+end
+
+-- ============================================================
+-- NO ATMOSPHERE
+-- ============================================================
+local function applyNoAtmosphere(enabled)
+	local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+	if enabled then
+		if atm then
+			atm.Density = 0
+			atm.Haze    = 0
+			atm.Glare   = 0
+			atm.Offset  = 0
+		end
+	else
+		if atm and next(atmosphereBackup) then
+			atm.Density = atmosphereBackup.Density
+			atm.Offset  = atmosphereBackup.Offset
+			atm.Color   = atmosphereBackup.Color
+			atm.Decay   = atmosphereBackup.Decay
+			atm.Glare   = atmosphereBackup.Glare
+			atm.Haze    = atmosphereBackup.Haze
+		end
+	end
+end
+
+-- ============================================================
 -- CONSTRUCTION DU PANEL
 -- ============================================================
 makeSection("─── TOUCHES", 1)
@@ -339,15 +436,24 @@ makeToggle("Vie (Health)",                 "showHealth",    10)
 makeSection("─── RENDU", 11)
 makeSlider("Taille du texte",   "textSize",    8,   28,   1, 12)
 makeSlider("Distance de rendu", "maxDistance", 20, 5000, 50, 13)
+makeSection("─── VISIBILITÉ", 14)
+makeToggle("Fullbright", "fullbright", 15, function(val)
+	applyFullbright(config.fullbrightVal)
+end)
+makeSlider("Intensité Fullbright", "fullbrightVal", 0.5, 3, 0.1, 16, function(val)
+	if config.fullbright then applyFullbright(val) end
+end)
+makeToggle("Supprimer Atmosphere", "noAtmosphere", 17, function(val)
+	applyNoAtmosphere(val)
+end)
 
--- Séparateur + bouton Stop
-makeSection("─── Autre", 14)
+makeSection("─── AUTRE", 18)
 
 local stopRow = Instance.new("Frame")
 stopRow.Size             = UDim2.new(1, -8, 0, 38)
 stopRow.BackgroundColor3 = Color3.fromRGB(60, 15, 15)
 stopRow.BorderSizePixel  = 0
-stopRow.LayoutOrder      = 15
+stopRow.LayoutOrder      = 19
 stopRow.Parent           = scroll
 Instance.new("UICorner", stopRow).CornerRadius = UDim.new(0, 7)
 local stopStroke = Instance.new("UIStroke", stopRow)
@@ -442,7 +548,6 @@ local function createBillboard(player)
 	bb.Adornee     = head
 	bb.Parent      = head
 
-	-- Bouton DisplayName
 	local displayBtn = Instance.new("TextButton", bb)
 	displayBtn.Name                   = "DisplayBtn"
 	displayBtn.Size                   = UDim2.new(1, 0, 0, 20)
@@ -457,9 +562,7 @@ local function createBillboard(player)
 	displayBtn.RichText               = true
 	displayBtn.Text                   = ""
 	Instance.new("UICorner", displayBtn).CornerRadius = UDim.new(0, 4)
-	-- PAS de MouseButton1Click ici, géré dans RenderStepped
 
-	-- Bouton @username
 	local usernameBtn = Instance.new("TextButton", bb)
 	usernameBtn.Name                   = "UsernameBtn"
 	usernameBtn.Size                   = UDim2.new(1, 0, 0, 20)
@@ -474,9 +577,7 @@ local function createBillboard(player)
 	usernameBtn.RichText               = true
 	usernameBtn.Text                   = ""
 	Instance.new("UICorner", usernameBtn).CornerRadius = UDim.new(0, 4)
-	-- PAS de MouseButton1Click ici, géré dans RenderStepped
 
-	-- Label infos (distance, team, health)
 	local infoLabel = Instance.new("TextLabel", bb)
 	infoLabel.Name                   = "InfoLabel"
 	infoLabel.Size                   = UDim2.new(1, 0, 1, 0)
@@ -496,7 +597,7 @@ local function createBillboard(player)
 		usernameBtn = usernameBtn,
 		infoLabel   = infoLabel,
 		head        = head,
-		clicked     = false,  -- flag anti-spam clic
+		clicked     = false,
 	}
 end
 
@@ -522,6 +623,9 @@ stopBtn.MouseButton1Click:Connect(function()
 	scriptStopped = true
 	enabled       = false
 	clearBillboards()
+	-- Restore lighting avant de quitter
+	applyFullbright(false)
+	applyNoAtmosphere(false)
 	screenGui:Destroy()
 end)
 
@@ -569,6 +673,28 @@ end
 -- ============================================================
 RunService.RenderStepped:Connect(function()
 	if scriptStopped then return end
+
+	-- Maintien fullbright en boucle (au cas où le jeu rechange le lighting)
+	if config.fullbright then
+		Lighting.Ambient        = Color3.new(1, 1, 1)
+		Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+		Lighting.Brightness     = config.fullbrightVal
+		Lighting.ClockTime      = 14
+		Lighting.FogEnd         = 100000
+		Lighting.FogStart       = 100000
+	end
+
+	-- Maintien no atmosphere en boucle
+	if config.noAtmosphere then
+		local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+		if atm then
+			atm.Density = 0
+			atm.Haze    = 0
+			atm.Glare   = 0
+			atm.Offset  = 0
+		end
+	end
+
 	if not enabled then return end
 
 	local myChar = localPlayer.Character
@@ -595,7 +721,6 @@ RunService.RenderStepped:Connect(function()
 					local data = billboards[player]
 					if not data then continue end
 
-					-- Hover via WorldToScreenPoint
 					local head = char:FindFirstChild("Head")
 					local isHovered = false
 					if head then
@@ -608,7 +733,6 @@ RunService.RenderStepped:Connect(function()
 						end
 					end
 
-					-- Clic manuel détecté via proximité souris
 					if isHovered then
 						if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
 							if not data.clicked then
@@ -622,11 +746,9 @@ RunService.RenderStepped:Connect(function()
 						data.clicked = false
 					end
 
-					-- Couleurs
 					local hoverColor  = Color3.fromRGB(255, 220, 50)
 					local normalWhite = Color3.fromRGB(255, 255, 255)
 
-					-- DisplayName
 					if config.showDisplay then
 						data.displayBtn.Visible  = true
 						data.displayBtn.TextSize = config.textSize
@@ -640,7 +762,6 @@ RunService.RenderStepped:Connect(function()
 						data.displayBtn.Visible = false
 					end
 
-					-- @username
 					local offsetY = config.showDisplay and (config.textSize + 2) or 0
 					if config.showUsername then
 						data.usernameBtn.Visible    = true
@@ -652,7 +773,6 @@ RunService.RenderStepped:Connect(function()
 						data.usernameBtn.Visible = false
 					end
 
-					-- InfoLabel
 					local infoOffsetY = offsetY + (config.showUsername and (config.textSize + 2) or 0)
 					data.infoLabel.Position = UDim2.new(0, 0, 0, infoOffsetY)
 					data.infoLabel.TextSize = config.textSize
