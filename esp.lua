@@ -29,7 +29,7 @@ end
 local function execScript(code)
     local ok, err = pcall(loadstring(code))
     if not ok then
-        warn("[BlueCode3D] Erreur script : " .. tostring(err))
+        warn("[BlueCode Development] Erreur script : " .. tostring(err))
     end
 end
 
@@ -38,7 +38,7 @@ local checkUrl = API_URL .. "/checkaccess?userId=" .. userId
 local result = httpGet(checkUrl)
 
 if not result then
-    warn("[BlueCode3D] Erreur réseau — impossible de contacter l'API.")
+    warn("[BlueCode Development] Erreur réseau — impossible de contacter l'API.")
     return
 end
 
@@ -49,19 +49,19 @@ if result ~= "KEY_REQUIRED" and result ~= "INVALID" and result ~= "ERROR" then
 end
 
 if result == "INVALID" then
-    warn("[BlueCode3D] UserId invalide.")
+    warn("[BlueCode Development] UserId invalide.")
     return
 end
 
 -- ── Étape 2 : Afficher l'interface de clé ─────────────────
 
 -- Supprimer une ancienne UI si elle existe
-if game:GetService("CoreGui"):FindFirstChild("BlueCode3D_KeyUI") then
-    game:GetService("CoreGui"):FindFirstChild("BlueCode3D_KeyUI"):Destroy()
+if game:GetService("CoreGui"):FindFirstChild("BlueCode Development_KeyUI") then
+    game:GetService("CoreGui"):FindFirstChild("BlueCode Development_KeyUI"):Destroy()
 end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "BlueCode3D_KeyUI"
+screenGui.Name = "BlueCode Development_KeyUI"
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.ResetOnSpawn = false
 
@@ -74,14 +74,6 @@ if not screenGui.Parent then
     screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- ── Fond semi-transparent ─────────────────────────────────
-local backdrop = Instance.new("Frame")
-backdrop.Name = "Backdrop"
-backdrop.Size = UDim2.new(1, 0, 1, 0)
-backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-backdrop.BackgroundTransparency = 0.5
-backdrop.BorderSizePixel = 0
-backdrop.Parent = screenGui
 
 -- ── Frame principal ───────────────────────────────────────
 local mainFrame = Instance.new("Frame")
@@ -126,12 +118,28 @@ titleLabel.Name = "Title"
 titleLabel.Size = UDim2.new(1, -20, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🔑  BlueCode3D"
+titleLabel.Text = "🔑  BlueCode Development"
 titleLabel.TextColor3 = Color3.fromRGB(18, 18, 24)
 titleLabel.TextSize = 22
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
+
+-- Bouton Fermer
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
+closeBtn.Size = UDim2.new(0, 40, 0, 40)
+closeBtn.Position = UDim2.new(1, -45, 0.5, -20)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(18, 18, 24)
+closeBtn.TextSize = 20
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = titleBar
+
+closeBtn.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
 
 -- ── Contenu ───────────────────────────────────────────────
 local content = Instance.new("Frame")
